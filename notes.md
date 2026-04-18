@@ -3,3 +3,5 @@
 # 分支与合并操作
 
 常用命令：init / add / commit / branch / checkout
+
+合并技巧：使用 --no-ff 强制生成合并提交，保留分支历史
