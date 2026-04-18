@@ -5,3 +5,6 @@
 常用命令：init / add / commit / branch / checkout
 
 合并技巧：使用 --no-ff 强制生成合并提交，保留分支历史
+
+# 独立开发功能
+此分支仅做演示，不合并回主线
