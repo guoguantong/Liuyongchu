@@ -1,0 +1,94 @@
+========================================
+   逆向分析实验报告 - ReAct Agent + angr
+   25140933 刘勇初
+========================================
+
+一、工具封装说明
+
+本实验在 Python 中封装了至少两个可被 Agent 调用的工具，实际实现了四个工具，均位于 AngrTool 类中：
+
+1. tool_get_state_info()
+   功能：获取当前符号执行的状态信息（活跃状态数、已找到状态数）。
+   返回：字符串，例如 "Active states: 1, Found states: 0"。
+
+2. tool_setup_exploration(find_addr, avoid_addrs=None)
+   功能：设置符号探索的目标地址（find_addr）和需要避开的地址列表（avoid_addrs）。
+   参数：find_addr (int)，avoid_addrs (list of int，可选)
+   返回：配置结果的字符串描述。
+
+3. tool_explore()
+   功能：执行符号探索，尝试找到能到达目标地址的路径。
+   返回：成功或失败的信息，若成功会内部保存成功状态。
+
+4. tool_solve_input()
+   功能：从成功状态中求解具体的输入值（密码字符串）。
+   返回：密码字符串或错误信息。
+
+这些工具通过 ReActAgent 类的决策序列进行调用，每个工具完成单一职责，符合任务要求。
+
+二、运行日志（至少3轮 Thought->Action->Observation）
+
+加载 crackme...
+[INFO] [地址] puts: 0x4010f0
+[INFO] [地址] gadget_trap: 0x401170
+[INFO] [Hook] hooked at 0x401170
+
+============================================================
+ReAct Agent 启动
+============================================================
+
+--- 第 1 轮 ---
+Thought: 首先获取当前符号执行状态。
+Action: get_state_info | 参数: {}
+Observation: Active states: 1, Found states: 0
+
+--- 第 2 轮 ---
+Thought: 设置目标地址为 puts，避开 gadget_trap。
+Action: setup_exploration | 参数: {'find_addr': 4202480, 'avoid_addrs': [4203376]}
+[INFO] [配置] 目标=0x4010f0, 避开=['0x401170']
+Observation: Setup OK: 目标=0x4010f0, 避开=['0x401170']
+
+--- 第 3 轮 ---
+Thought: 执行符号探索。
+Action: explore | 参数: {}
+[INFO] [探索] 尝试到达 0x4010f0
+Observation: 探索成功！找到 1 条路径
+
+--- 第 4 轮 ---
+Thought: 求解具体输入密码。
+Action: solve_input | 参数: {}
+[INFO] [求解] 密码 = AZqx
+Observation: AZqx
+
+============================================================
+[SUCCESS] 逆向成功！正确密码 = AZqx
+
+[验证输出]
+Enter password: Success! Flag is found.
+
+[SUCCESS] 验证通过，输出 Success! Flag is found.
+============================================================
+
+三、思考题
+
+问：在本实验中，LLM主要承担什么角色？它如何借助语义与常识，缓解纯符号执行在搜索空间上的困难？
+
+答：
+1. LLM的角色：
+   在 ReAct 架构中，LLM 充当“决策与编排中心”。它不直接执行底层代码分析，而是通过 Thought→Action→Observation 循环：
+   - 理解高层目标（找到能输出 Success 的密码）
+   - 将复杂逆向任务分解为子步骤（获取状态 → 配置探索 → 执行符号执行 → 求解输入）
+   - 根据观察结果选择调用哪个工具及传递什么参数
+   - 必要时调整策略（例如修改避开地址）
+
+2. 缓解搜索空间困难的方式：
+   - 语义剪枝：LLM 能识别 gadget_trap 是死循环陷阱，主动将其加入 avoid 列表，避免 angr 盲目探索该分支，阻止路径爆炸。
+   - 启发式导向：LLM 依据常识推测正确密码可能满足连续字符约束（如 'A' 开头，'Z' 作为第二个字符），优先探索语义合理的路径而非穷举所有可能。
+   - 目标聚焦：LLM 将自然语言目标“打印 Success”转化为精确的符号执行目标（puts 函数地址），使 angr 只探索能到达该地址的路径，大幅削减无关状态。
+   - 动态约束：当观察发现路径条件复杂时，LLM 可以主动添加可打印字符等约束，加速求解器收敛。
+
+通过以上方式，LLM 的语义理解与常识推理弥补了纯符号执行“盲目探索、缺乏高层指导”的缺陷，成功求解出符合业务逻辑的正确输入（本例中为 AZqx）。
+
+四、总结
+
+本实验成功实现了基于 ReAct 架构的智能体，封装了至少两个 angr 工具，并通过 Thought-Action-Observation 闭环自动完成了对 crackme 程序的逆向分析，最终求解出正确密码 "AZqx"，验证程序输出 "Success! Flag is found."，完全满足实验要求。
